@@ -25,7 +25,7 @@ class UserController extends Controller
         ]);
 
         if($validator -> fails()) 
-            return $validator->$errors()->toJson();
+            return $validator->errors()->toJson();
 
         try {
             return User::create([
@@ -65,9 +65,8 @@ class UserController extends Controller
 
         if(!Auth::attempt([
             'email' => $request -> post('email'),
-            'password' => $request -> post('password'),
-            'remember' => $remember
-        ])) {
+            'password' => $request -> post('password')
+        ], $remember)) {
             return [
                 'result' => "Credentials don't match."
             ];
