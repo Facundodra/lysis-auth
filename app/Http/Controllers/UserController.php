@@ -7,73 +7,82 @@ use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-use \Illuminate\Database\QueryException;
+use Illuminate\Database\QueryException;
 
 class UserController extends Controller
 {
+    private const SUCCESS = 1;
 
-    /**
-     * Creates a new user.
-     * 
-     * @param \Illuminate\Http\Request $request
-     */
     public function Create(Request $request) {
+        $validation = validateCreation($request);
+
+        if($validation !== $SUCCESS)
+            return $validation;      
+
+        try {
+            return create($request);
+        }
+        catch (QueryExcpetion $e) {
+            return handleError($e);
+        }
+    }
+    
+    public function Authenticate(Request $request) {
+        $remember = false;
+
+        if($request -> post("remember") === true) 
+            $remember = true;
+
+        return doAuthentication($request);
+    }
+
+    private function validateCreation($request) {
         $validator = Validator::make($request -> all(),[
-            'name' => 'required',
-            'email' => 'required',
-            'password' => 'required'
+            "name" => "required",
+            "email" => "required",
+            "password" => "required"
         ]);
 
         if($validator -> fails()) 
             return $validator->errors()->toJson();
 
-        try {
-            return User::create([
-                'name' => $request -> post('name'),
-                'email' => $request -> post('email'),
-                'password' => Hash::make($request -> post('password'))
-            ]);
-        }
-        catch (QueryExcpetion $e) {
-            return [
-                'error' => 'User ' . $request -> post('name') . ' already exists.',
-                'trace' => $e -> getMessage()
-            ];
-        }
+        return $SUCCESS;
     }
 
-    /**
-     * Authenticates a user.
-     * 
-     * @param \Illuminate\Http\Request $request
-     */
-
-    public function Authenticate(Request $request) {
-        $remember = false;
-
-        $validator = Validator::make($request -> all(), [
-            'email' => 'required',
-            'password' => 'required',
-            'remember' => 'required'
+    private function createUser($request) {
+        return User::create([
+            "name" => $request -> post("name"),
+            "email" => $request -> post("email"),
+            "password" => Hash::make($request -> post("password"))
         ]);
+    }
 
-        if($request -> post('remember') === true) 
-            $remember = true;
+    private function handleError($e) {
+        return $e -> getMessage();
+    }
+
+    private function validateAuthentication($request) {
+        $validator = Validator::make($request -> all(), [
+            "email" => "required",
+            "password" => "required",
+            "remember" => "required"
+        ]);
 
         if($validator -> fails())
             return $validator -> $errors()->toJson();
 
-        if(!Auth::attempt([
-            'email' => $request -> post('email'),
-            'password' => $request -> post('password')
-        ], $remember)) {
+        return $validator;
+    }
+
+    public function doAuthentication($credentials) {
+        if(!Auth::attempt($credentials)) {
             return [
-                'result' => "Credentials don't match."
+                "result" => "Credentials don't match any registered user."
             ];
         }
 
         return [
-            'result' => 'Log in succesful.'
+            "result" => "Succesful log in."
         ];
     }
 }
