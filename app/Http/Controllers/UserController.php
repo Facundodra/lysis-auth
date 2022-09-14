@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Client;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -14,16 +15,16 @@ class UserController extends Controller
     private const SUCCESS = 1;
 
     public function Create(Request $request) {
-        $validation = validateCreation($request);
+        $validation = $this->validateCreation($request);
 
-        if($validation !== $SUCCESS)
+        if($validation !== "true")
             return $validation;      
 
         try {
-            return create($request);
+            return $this->create($request);
         }
         catch (QueryExcpetion $e) {
-            return handleError($e);
+            return $this->handleError($e);
         }
     }
     
@@ -33,32 +34,53 @@ class UserController extends Controller
         if($request -> post("remember") === true) 
             $remember = true;
 
-        return doAuthentication($request);
+        return $this->doAuthentication([
+            "email" => $request -> post("email"),
+            "password" => $request -> post("password")
+        ],
+            $remember
+        );
     }
 
     private function validateCreation($request) {
         $validator = Validator::make($request -> all(),[
             "name" => "required",
             "email" => "required",
-            "password" => "required"
+            "password" => "required",
+            "surname" => "required",
+            "birthDate" => "required",
+            "subscriptionId" => "required"
         ]);
 
-        if($validator -> fails()) 
+        if($validator->fails()) 
             return $validator->errors()->toJson();
 
-        return $SUCCESS;
+        return "true";
     }
 
     private function createUser($request) {
-        return User::create([
+        $client = new Client([
+            "surname" => $request->post("surname"),
+            "birth_date" => $request->post("birthDate"),
+            "subscription_id" => $request->post("subscriptionId")
+        ]);
+
+        $user = User::create([
             "name" => $request -> post("name"),
             "email" => $request -> post("email"),
             "password" => Hash::make($request -> post("password"))
         ]);
+
+        $client->save();
+        $client->refresh();
+
+        $client->user()->save($user);
+
+        return $client;
     }
 
     private function handleError($e) {
-        return $e -> getMessage();
+        return $e->getMessage();
     }
 
     private function validateAuthentication($request) {
@@ -74,13 +96,12 @@ class UserController extends Controller
         return $validator;
     }
 
-    public function doAuthentication($credentials) {
-        if(!Auth::attempt($credentials)) {
+    private function doAuthentication($credentials, $remember) {
+        if(!Auth::attempt($credentials, $remember)) {
             return [
                 "result" => "Credentials don't match any registered user."
             ];
         }
-
         return [
             "result" => "Succesful log in."
         ];
