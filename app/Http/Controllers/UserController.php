@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
@@ -17,7 +18,7 @@ class UserController extends Controller
         $validation = $this->validateCreation($request);
 
         if($validation !== true)
-            return $validation;      
+            return $validation;
 
         try {
             return $this->createUser($request);
@@ -57,18 +58,28 @@ class UserController extends Controller
     }
 
     private function createUser($request) {
-        $client = Client::create([
-            "surname" => $request->post("surname"),
-            "birth_date" => $request->post("birthDate")
-        ]);
-
         $user = new User([
             "name" => $request -> post("name"),
             "email" => $request -> post("email"),
             "password" => Hash::make($request -> post("password"))
         ]);
 
-        $client->user()->save($user);
+        $client = new Client([
+            "surname" => $request->post("surname"),
+            "birth_date" => $request->post("birthDate")
+        ]);
+
+        try {
+            DB::transaction(function () use($request, $user, $client) {
+                $client->save();
+                $client->user()->save($user);
+            });
+        } 
+        catch (QueryException $e) {
+            return [
+                "result" => "User already exists."
+            ];
+        }
 
         return [
             "result" => "Registered succesfully."
@@ -95,6 +106,7 @@ class UserController extends Controller
             ];
         }
         return [
+            "result" => "Succesfully logged in.",
             "subscription" => Auth::user()->subscriptionType()->first(),
             "subscriptionId" => Auth::user()->client->subscription_id
         ];
