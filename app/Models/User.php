@@ -8,6 +8,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Models\Client;
+use App\Models\SubscriptionType;
+use Illuminate\Support\Facades\DB;
+
 
 class User extends Authenticatable
 {
@@ -45,5 +48,14 @@ class User extends Authenticatable
 
     public function client() {
         return $this->belongsTo(Client::class);
+    }
+
+    public function subscriptionType() {
+        return DB::table('users')
+                ->join('clients', 'users.client_id', '=', 'clients.id')
+                ->join('subscription_types', 'clients.subscription_id', '=', 'subscription_types.subscription_id')
+                ->select('type')
+                ->where('users.id', '=', $this->id)
+                ->get();
     }
 }
