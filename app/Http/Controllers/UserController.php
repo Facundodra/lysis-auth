@@ -12,19 +12,18 @@ use Illuminate\Database\QueryException;
 
 class UserController extends Controller
 {
-    private const SUCCESS = 1;
 
     public function Create(Request $request) {
         $validation = $this->validateCreation($request);
 
-        if($validation !== "true")
+        if($validation !== true)
             return $validation;      
 
         try {
-            return $this->create($request);
+            return $this->createUser($request);
         }
-        catch (QueryExcpetion $e) {
-            return $this->handleError($e);
+        catch (QueryException $e) {
+            return $e->getMessage();
         }
     }
     
@@ -48,39 +47,32 @@ class UserController extends Controller
             "email" => "required",
             "password" => "required",
             "surname" => "required",
-            "birthDate" => "required",
-            "subscriptionId" => "required"
+            "birthDate" => "required"
         ]);
 
         if($validator->fails()) 
             return $validator->errors()->toJson();
 
-        return "true";
+        return true;
     }
 
     private function createUser($request) {
-        $client = new Client([
+        $client = Client::create([
             "surname" => $request->post("surname"),
-            "birth_date" => $request->post("birthDate"),
-            "subscription_id" => $request->post("subscriptionId")
+            "birth_date" => $request->post("birthDate")
         ]);
 
-        $user = User::create([
+        $user = new User([
             "name" => $request -> post("name"),
             "email" => $request -> post("email"),
             "password" => Hash::make($request -> post("password"))
         ]);
 
-        $client->save();
-        $client->refresh();
-
         $client->user()->save($user);
 
-        return $client;
-    }
-
-    private function handleError($e) {
-        return $e->getMessage();
+        return [
+            "result" => "Registered succesfully."
+        ];
     }
 
     private function validateAuthentication($request) {
@@ -103,7 +95,8 @@ class UserController extends Controller
             ];
         }
         return [
-            "result" => "Succesful log in."
+            "subscription" => Auth::user()->subscriptionType()->first(),
+            "subscriptionId" => Auth::user()->client->subscription_id
         ];
     }
 }
