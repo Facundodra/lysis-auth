@@ -3,112 +3,68 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\User;
-use App\Models\Client;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use App\Models\User;
+use App\Models\Client;
 
 class UserController extends Controller
 {
-
-    public function Create(Request $request) {
-        $validation = $this->validateCreation($request);
-
-        if($validation !== true)
-            return $validation;
-
-        try {
-            return $this->createUser($request);
-        }
-        catch (QueryException $e) {
-            return $e->getMessage();
-        }
-    }
-    
-    public function Authenticate(Request $request) {
-        $remember = false;
-
-        if($request -> post("remember") === true) 
-            $remember = true;
-
-        return $this->doAuthentication([
-            "email" => $request -> post("email"),
-            "password" => $request -> post("password")
-        ],
-            $remember
-        );
-    }
-
-    private function validateCreation($request) {
-        $validator = Validator::make($request -> all(),[
-            "name" => "required",
-            "email" => "required",
-            "password" => "required",
-            "surname" => "required",
-            "birthDate" => "required"
-        ]);
-
-        if($validator->fails()) 
-            return $validator->errors()->toJson();
-
-        return true;
-    }
-
-    private function createUser($request) {
-        $user = new User([
-            "name" => $request -> post("name"),
-            "email" => $request -> post("email"),
-            "password" => Hash::make($request -> post("password"))
-        ]);
-
-        $client = new Client([
-            "surname" => $request->post("surname"),
-            "birth_date" => $request->post("birthDate")
-        ]);
-
+    public function create(CreateUserRequest $request) {
         try {
             DB::transaction(function () use($request, $user, $client) {
-                $client->save();
+                Client::create([
+                    'surname' => $request->post('surname'),
+                    'birth_date' => $request->post('birthDate')
+                ]);
+                User::create([
+                    'name' => $request -> post('name'),
+                    'email' => $request -> post('email'),
+                    'password' => Hash::make($request -> post('password'))
+                ]);
                 $client->user()->save($user);
             });
-        } 
+        }
         catch (QueryException $e) {
             return [
-                "result" => "User already exists."
+                'result' => 'Unable to create user right now.'
             ];
         }
 
         return [
-            "result" => "Registered succesfully."
+            'result' => 'User registered succesfully.'
+        ];
+    }
+    
+    public function authenticate(Request $request) {
+        $validation = $this->validateAuthentication($request);
+        if($validation !== true)
+            return $validation;
+
+        if(!Auth::attempt($request->only('email', 'password'), $request->post('remember')))
+            return [
+                'result' => 'Wrong password or email.'
+            ];
+
+        return [
+            'result' => 'Succesfully logged in.',
+            'subscriptionId' => User::firstWhere('id', Auth::id())->client->subscription_id,
+            'subscription' => Auth::user()->client->subscription->type
         ];
     }
 
     private function validateAuthentication($request) {
         $validator = Validator::make($request -> all(), [
-            "email" => "required",
-            "password" => "required",
-            "remember" => "required"
+            'email' => 'required|email|exists:users',
+            'password' => 'required',
+            'remember' => 'required|boolean'
         ]);
-
         if($validator -> fails())
-            return $validator -> $errors()->toJson();
+            return $validator->errors()->toJson();
 
-        return $validator;
-    }
-
-    private function doAuthentication($credentials, $remember) {
-        if(!Auth::attempt($credentials, $remember)) {
-            return [
-                "result" => "Credentials don't match any registered user."
-            ];
-        }
-        return [
-            "result" => "Succesfully logged in.",
-            "subscription" => Auth::user()->subscriptionType()->first(),
-            "subscriptionId" => Auth::user()->client->subscription_id
-        ];
+        return true;
     }
 }
