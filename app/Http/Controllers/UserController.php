@@ -56,6 +56,34 @@ class UserController extends Controller
         ];
     }
 
+    public function update(UpdateUserRequest $request)
+    {
+        try {
+            DB::transaction(function () use ($request){
+                User::find(Auth::id())->update([
+                    'name' => $request->post('name'),
+                    'email' => $request->post('email'),
+                ]);
+                if(!empty($request->post('password')))
+                    User::find(Auth::id())->update([
+                        'password' => Hash::make($request->post('password'))
+                    ]);
+                User::find(Auth::id())->client->update([
+                    'surname' => $request->post('surname'),
+                    'birth_date' => $request->post('birthdate')
+                ]);
+        });
+        } catch (QueryExcpetion $e) {
+            return [
+                'result' => 'Unable to update user right now.'
+            ];
+        }
+
+        return [
+            'result' => 'User information updated succesfully.'
+        ];
+    }
+
     private function validateAuthentication($request) {
         $validator = Validator::make($request -> all(), [
             'email' => 'required|email|exists:users',
