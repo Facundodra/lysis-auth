@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Http\Requests\AuthenticateUserRequest;
+use App\Http\Requests\CreateUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
@@ -15,12 +18,12 @@ class UserController extends Controller
 {
     public function create(CreateUserRequest $request) {
         try {
-            DB::transaction(function () use($request, $user, $client) {
-                Client::create([
+            DB::transaction(function () use($request) {
+                $client = Client::create([
                     'surname' => $request->post('surname'),
                     'birth_date' => $request->post('birthDate')
                 ]);
-                User::create([
+                $user = User::create([
                     'name' => $request -> post('name'),
                     'email' => $request -> post('email'),
                     'password' => Hash::make($request -> post('password'))
@@ -39,11 +42,8 @@ class UserController extends Controller
         ];
     }
     
-    public function authenticate(Request $request) {
-        $validation = $this->validateAuthentication($request);
-        if($validation !== true)
-            return $validation;
-
+    public function authenticate(AuthenticateUserRequest $request) {
+        
         if(!Auth::attempt($request->only('email', 'password'), $request->post('remember')))
             return [
                 'result' => 'Wrong password or email.'
@@ -73,7 +73,7 @@ class UserController extends Controller
                     'birth_date' => $request->post('birthdate')
                 ]);
         });
-        } catch (QueryExcpetion $e) {
+        } catch (QueryException $e) {
             return [
                 'result' => 'Unable to update user right now.'
             ];
@@ -82,17 +82,5 @@ class UserController extends Controller
         return [
             'result' => 'User information updated succesfully.'
         ];
-    }
-
-    private function validateAuthentication($request) {
-        $validator = Validator::make($request -> all(), [
-            'email' => 'required|email|exists:users',
-            'password' => 'required',
-            'remember' => 'required|boolean'
-        ]);
-        if($validator -> fails())
-            return $validator->errors()->toJson();
-
-        return true;
     }
 }
